@@ -1,73 +1,51 @@
-
 (define (domain crane_domain)
-    (:requirements :strips :typing :disjunctive-preconditions :negative-preconditions :action-costs)
 
-    (:types object location physobj - object 
-            loading_bay - location  
-            crate - physobj
-            crane - physobj   ; make sure "crane" is used here
-    )
+;remove requirements that are not needed
+(:requirements :strips  :typing :conditional-effects )
 
-    (:predicates 
-        (at ?physobj - physobj ?location - location) ; a physical object is at a location
-        (is_heavy ?crate - crate) ; assign weight to crate
-        (on_top_of ?crate1 - crate ?crate2 - crate) ; define the stack hierarchy in case of multiple crates in one bay
-        (holding ?crane - crane ?crate - crate) ; the crane is holding a crate
-        (free ?crane) ; the crane is free
-        (connected ?loc1 - location ?loc2 - location) ; define the connections between locations
-    )
-
-    (:functions
-    (num_crates_on_bay ?loading_bay) ; Define the function for counting crates
-    (total_cost) ; calculates total cost to resolve problem
-    )
-
-    (:action crane_move
-        :parameters ( ?crane - crane ?from - loading_bay ?to - loading_bay) ; a crane must be in location and move to another     
-        :precondition (and (connected ?from ?to) (connected ?to ?from)) ; this adds symmetry to connection (2 ways)
-        :effect (and (not (at ?crane ?from)) (at ?crane ?to))
-    )
-
-    (:action pick_up
-    :parameters (?crane - crane ?crate - crate ?loc - loading_bay)
-    :precondition (and 
-        (at ?crane ?loc) ; the crane must be at the loading bay
-        (at ?crate ?loc) ; the crate must be at the loading bay
-        (free ?crane) ; the crane must not be holding a crate already
-        (not (exists (?other_crate - crate) 
-            (on_top_of ?other_crate ?crate))) ; No crate should be on top of the target crate
-    )
-    :effect (and 
-        (holding ?crane ?crate) ; the crane is now holding the crate
-        (not (free ?crane)) ; the crane is not free anymore
-        (not (at ?crate ?loc)) ; the crate is not at the loading bay
-        (decrease (num_crates_on_bay ?loc) 1) ; decrement crate count
-        ;; Ensure crate is no longer considered on top of another
-        (forall (?other_crate - crate)
-            (not (on_top_of ?crate ?other_crate))) ; Remove any stacking relationships involving this crate
-    )
+(:types objects physobj - object location
+    loading_bay - location
+    crane - physobj
+    crate - physobj
 )
 
-    (:action drop_off
-    :parameters (?crane - crane ?crate - crate ?top_crate - crate ?loc - loading_bay)
-    :precondition (and 
-        (at ?crane ?loc) ; Crane is at the location
-        (holding ?crane ?crate) ; Crane is holding the crate
-        (<= (num_crates_on_bay ?loc) 3) ; Check capacity
-        (not (on_top_of ?crate ?crate)) ; Prevent self-stacking
-        (at ?top_crate ?loc)           ; The top crate is at the same location
-        (not (exists (?other_crate - crate)  ; Ensure no other crate is on top of the top crate
-            (and (at ?other_crate ?loc) 
-            (on_top_of ?other_crate ?top_crate)))))  ; No crate is on top of the top crate
+(:functions
+    (num_crates_on_bay ?loading_bay) ; Define the function for counting crates
+)
 
-    :effect (and 
-        (not (holding ?crane ?crate)) ; Crane releases the crate
-        (free ?crane) ; Crane is now free
-        (at ?crate ?loc) ; Crate is placed at the location
-        (increase (num_crates_on_bay ?loc) 1) ; Update crate count
-        ;; Place the crate on top if there are existing crates
-        (on_top_of ?crate ?top_crate)
-        (increase (total_cost) 2) ; increase total cost
-        )
-    )
+(:predicates 
+    (at ?physobj - physobj ?loc - location)
+    (connected ?from - location ?to - location)
+    (holding ?crate - crate ?crane - crane)
+    (free ?crane - crane)
+    (top_most ?crate - crate)
+    (stacked ?top_crate - crate ?bot_crate - crate)
+)
+
+(:action move_crane
+    :parameters (?crane - crane ?from - loading_bay ?to - loading_bay)
+    :precondition (and (connected ?from ?to) (at ?crane ?from))
+    :effect (and (not( at ?crane ?from)) (at ?crane ?to))
+)
+(:action pick_up_crate
+    :parameters (?crate - crate ?below_crate - crate ?crane - crane ?loading_bay - loading_bay)
+    :precondition (and (at ?crane ?loading_bay) (free ?crane) (at ?crate ?loading_bay) (top_most ?crate))
+    :effect (and (holding ?crate ?crane) (not(at ?crate ?loading_bay)) (not(free ?crane)) 
+            (when (stacked ?crate ?below_crate)
+                    (and (not (stacked ?crate ?below_crate))
+                    (top_most ?below_crate)))
+            (not(top_most ?crate))
+            (decrease (num_crates_on_bay ?loading_bay) 1))
+)
+
+(:action drop_off_crate
+    :parameters (?crate - crate ?below_crate - crate ?crane - crane ?loading_bay - loading_bay)
+    :precondition (and (at ?crane ?loading_bay) (holding ?crate ?crane) (<= (num_crates_on_bay ?loading_bay) 3) )
+    :effect (and (at ?crate ?loading_bay) (top_most ?crate) (not (holding ?crate ?crane)) (free ?crane)
+            (when (and (top_most ?below_crate ) ( at ?below_crate ?loading_bay))
+                    (and (stacked ?crate ?below_crate)
+                    (not (top_most ?below_crate))))
+            (increase (num_crates_on_bay ?loading_bay) 1))
+)
+
 )
