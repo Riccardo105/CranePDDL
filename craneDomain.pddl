@@ -9,9 +9,7 @@
     crate - physobj
 )
 
-(:functions
-    (num_crates_on_bay ?loading_bay) ; Define the function for counting crates
-)
+
 
 (:predicates 
     (at ?physobj - physobj ?loc - location)
@@ -35,17 +33,16 @@
                     (and (not (stacked ?crate ?below_crate))
                     (top_most ?below_crate)))
             (not(top_most ?crate))
-            (decrease (num_crates_on_bay ?loading_bay) 1))
+            )
 )
 
 (:action drop_off_crate
     :parameters (?crate - crate ?below_crate - crate ?crane - crane ?loading_bay - loading_bay)
-    :precondition (and (at ?crane ?loading_bay) (holding ?crate ?crane) (<= (num_crates_on_bay ?loading_bay) 3) )
+    :precondition (and (at ?crane ?loading_bay) (holding ?crate ?crane) )
     :effect (and (at ?crate ?loading_bay) (top_most ?crate) (not (holding ?crate ?crane)) (free ?crane)
             (when (and (top_most ?below_crate ) ( at ?below_crate ?loading_bay))
                     (and (stacked ?crate ?below_crate)
-                    (not (top_most ?below_crate))))
-            (increase (num_crates_on_bay ?loading_bay) 1))
-)
+                    (not (top_most ?below_crate)))))
 
+)
 )
